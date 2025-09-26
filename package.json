@@ -11,7 +11,8 @@
     "codesign": "./scripts/codesign.sh",
     "notarize": "./scripts/notarize.sh",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "clean": "rm -rf dist build bin node_modules"
   },
   "pkg": {
     "scripts": "build/**/*.js",

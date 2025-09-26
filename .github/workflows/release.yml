@@ -64,7 +64,7 @@ jobs:
       - name: Sign binaries
         env:
           DEVELOPER_ID: ${{ secrets.DEVELOPER_ID }}
-          BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
+          BUNDLE_ID: ${{ vars.BUNDLE_ID }}
         run: |
           # Make binaries executable
           chmod +x bin/hello-lightdash-x64

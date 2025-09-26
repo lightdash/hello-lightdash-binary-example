@@ -96,9 +96,10 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-### Required GitHub Secrets
+### Required Configuration
 
-Configure these in your repository settings:
+#### GitHub Secrets
+Configure these in Settings → Secrets and variables → Actions → Secrets:
 
 1. **MACOS_CERTIFICATE** - Base64 encoded p12 certificate
    ```bash
@@ -109,13 +110,16 @@ Configure these in your repository settings:
 
 3. **DEVELOPER_ID** - Your Developer ID (e.g., "Developer ID Application: Name (TEAMID)")
 
-4. **BUNDLE_ID** - Your bundle identifier (e.g., "com.company.app")
+4. **APPLE_ID** - Your Apple ID email
 
-5. **APPLE_ID** - Your Apple ID email
+5. **APPLE_PASSWORD** - App-specific password for notarization
 
-6. **APPLE_PASSWORD** - App-specific password for notarization
+6. **APPLE_TEAM_ID** - Your Apple Team ID (e.g., "AF5SF5H727")
 
-7. **APPLE_TEAM_ID** - Your Apple Team ID (e.g., "AF5SF5H727")
+#### Repository Variables
+Configure these in Settings → Secrets and variables → Actions → Variables:
+
+1. **BUNDLE_ID** - Your bundle identifier (e.g., "com.lightdash.hello")
 
 ### Export Certificate for CI
 
