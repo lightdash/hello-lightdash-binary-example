@@ -38,28 +38,28 @@ jobs:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
         run: |
-          # Create a temporary keychain
-          KEYCHAIN_NAME="build.keychain"
+          # Create variables
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
           KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
 
-          # Create the keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          # Import certificate from secrets
+          echo -n "$MACOS_CERTIFICATE" | base64 --decode -o $CERTIFICATE_PATH
 
-          # Set the keychain as default
-          security default-keychain -s "$KEYCHAIN_NAME"
+          # Create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-          # Unlock the keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          # Import certificate to keychain
+          security import $CERTIFICATE_PATH -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
 
-          # Import certificate
-          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
-          security import certificate.p12 -k "$KEYCHAIN_NAME" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-
-          # Allow codesign to access the certificate without prompting
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          # Allow codesign to access the certificate
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
           # Clean up
-          rm certificate.p12
+          rm -f $CERTIFICATE_PATH
 
       - name: Sign binaries
         env:

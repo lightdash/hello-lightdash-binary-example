@@ -128,9 +128,17 @@ To export your Developer ID certificate:
 # Find your certificate
 security find-identity -v -p codesigning
 
-# Export to p12 (replace with your identity)
+# Export to p12 (use the exact certificate name from above)
 security export -k ~/Library/Keychains/login.keychain-db \
-  -t identities -f pkcs12 -o DeveloperIDApplication.p12 \
-  -P "your-password-here" \
-  -T /usr/bin/codesign
+  -t identities -f pkcs12 -o DeveloperIDApplication.p12
+
+# When prompted, enter a password for the p12 file
+# This password goes in MACOS_CERTIFICATE_PASSWORD secret
+
+# Convert to base64 for GitHub secret
+base64 -i DeveloperIDApplication.p12 | pbcopy
+
+# The clipboard now contains the value for MACOS_CERTIFICATE secret
 ```
+
+**Important**: When creating the MACOS_CERTIFICATE secret in GitHub, paste the base64 string directly without any line breaks.
