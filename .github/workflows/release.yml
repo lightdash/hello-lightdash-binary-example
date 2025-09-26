@@ -1,0 +1,185 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build binaries
+        run: pnpm build:binary
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_NAME="build.keychain"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          # Create the keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Set the keychain as default
+          security default-keychain -s "$KEYCHAIN_NAME"
+
+          # Unlock the keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Import certificate
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security import certificate.p12 -k "$KEYCHAIN_NAME" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+
+          # Allow codesign to access the certificate without prompting
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+
+          # Clean up
+          rm certificate.p12
+
+      - name: Sign binaries
+        env:
+          DEVELOPER_ID: ${{ secrets.DEVELOPER_ID }}
+          BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
+        run: |
+          # Make binaries executable
+          chmod +x bin/hello-lightdash-x64
+          chmod +x bin/hello-lightdash-arm64
+
+          # Sign both binaries
+          codesign -s "$DEVELOPER_ID" -f --timestamp -o runtime \
+            -i "$BUNDLE_ID" --entitlements entitlements.plist \
+            bin/hello-lightdash-x64
+
+          codesign -s "$DEVELOPER_ID" -f --timestamp -o runtime \
+            -i "$BUNDLE_ID" --entitlements entitlements.plist \
+            bin/hello-lightdash-arm64
+
+          # Verify signatures
+          codesign --verify --verbose bin/hello-lightdash-x64
+          codesign --verify --verbose bin/hello-lightdash-arm64
+
+      - name: Notarize binaries
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Store notarization credentials
+          xcrun notarytool store-credentials "CI_NOTARIZE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_PASSWORD"
+
+          # Create temporary directory for zips
+          mkdir -p notarize-temp
+
+          # Function to notarize a binary
+          notarize_binary() {
+            local BINARY_NAME=$1
+            local ZIP_PATH="notarize-temp/${BINARY_NAME}.zip"
+
+            echo "Notarizing ${BINARY_NAME}..."
+
+            # Create zip for notarization
+            ditto -c -k --keepParent "bin/${BINARY_NAME}" "$ZIP_PATH"
+
+            # Submit for notarization and wait
+            xcrun notarytool submit "$ZIP_PATH" \
+              --keychain-profile "CI_NOTARIZE" \
+              --wait
+
+            # Check status
+            if [ $? -eq 0 ]; then
+              echo "✓ Notarization successful for ${BINARY_NAME}"
+            else
+              echo "✗ Notarization failed for ${BINARY_NAME}"
+              exit 1
+            fi
+          }
+
+          # Notarize both binaries
+          notarize_binary "hello-lightdash-x64"
+          notarize_binary "hello-lightdash-arm64"
+
+          # Clean up
+          rm -rf notarize-temp
+
+      - name: Create release archives
+        run: |
+          # Get version from tag
+          VERSION=${GITHUB_REF#refs/tags/}
+
+          # Create archives for each architecture
+          tar -czf "hello-lightdash-${VERSION}-macos-x64.tar.gz" -C bin hello-lightdash-x64
+          tar -czf "hello-lightdash-${VERSION}-macos-arm64.tar.gz" -C bin hello-lightdash-arm64
+
+          # Create checksums
+          shasum -a 256 hello-lightdash-*.tar.gz > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            hello-lightdash-*.tar.gz
+            checksums.txt
+          body: |
+            ## Downloads
+
+            ### macOS
+            - **Apple Silicon (M1/M2/M3):** `hello-lightdash-${{ github.ref_name }}-macos-arm64.tar.gz`
+            - **Intel:** `hello-lightdash-${{ github.ref_name }}-macos-x64.tar.gz`
+
+            ### Installation
+
+            ```bash
+            # Download and extract (replace with your architecture)
+            tar -xzf hello-lightdash-${{ github.ref_name }}-macos-arm64.tar.gz
+
+            # Make executable (if needed)
+            chmod +x hello-lightdash-arm64
+
+            # Run
+            ./hello-lightdash-arm64
+            ```
+
+            ### Verification
+
+            The binaries are signed and notarized by Apple. To verify:
+            ```bash
+            codesign --verify --verbose hello-lightdash-arm64
+            ```
+
+            ### Checksums
+
+            Verify download integrity:
+            ```bash
+            shasum -a 256 -c checksums.txt
+            ```

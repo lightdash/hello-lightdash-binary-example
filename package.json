@@ -1,0 +1,35 @@
+{
+  "name": "hello-lightdash",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "bin": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "bundle": "ncc build dist/index.js -o build",
+    "build:binary": "pnpm build && pnpm bundle && npx @yao-pkg/pkg build/index.js --targets node20-macos-x64,node20-macos-arm64 --output bin/hello-lightdash",
+    "codesign": "./scripts/codesign.sh",
+    "notarize": "./scripts/notarize.sh",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "pkg": {
+    "scripts": "build/**/*.js",
+    "targets": [
+      "node20-macos-x64",
+      "node20-macos-arm64"
+    ],
+    "outputPath": "bin"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.12.1",
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@vercel/ncc": "^0.38.4",
+    "@yao-pkg/pkg": "^6.6.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

@@ -1,0 +1,7 @@
+# Copy this file to .envrc and update with your values
+# If using direnv, run: direnv allow
+
+# Apple Developer credentials
+export DEVELOPER_ID="YOUR_DEVELOPER_ID"
+export BUNDLE_ID="com.yourcompany.yourapp"
+export KEYCHAIN_PROFILE="YOUR_KEYCHAIN_PROFILE"
